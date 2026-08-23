@@ -1,0 +1,16 @@
+{
+  "name": "elevatebox-ai-sales-caller",
+  "version": "1.0.0",
+  "description": "Outbound AI voice sales workflow for the ElevateBox SDE intern assignment.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test",
+    "preflight": "node scripts/preflight.mjs"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

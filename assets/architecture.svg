@@ -1,0 +1,82 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1600" y2="900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F8F0D8"/>
+      <stop offset="1" stop-color="#F1C89A"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#FFFDF8"/>
+      <stop offset="1" stop-color="#F7E5CE"/>
+    </linearGradient>
+    <filter id="shadow" x="-50" y="-50" width="1700" height="1000" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#6F4123" flood-opacity="0.15"/>
+    </filter>
+    <style>
+      .title { font: 700 56px Georgia, serif; fill: #2B1E16; }
+      .subtitle { font: 400 24px Georgia, serif; fill: #5A4331; }
+      .cardTitle { font: 700 24px Georgia, serif; fill: #281B12; }
+      .body { font: 400 18px Georgia, serif; fill: #513B2C; }
+      .small { font: 400 16px Georgia, serif; fill: #6B5440; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="900" rx="36" fill="url(#bg)"/>
+  <circle cx="1420" cy="120" r="180" fill="#F7E0BD" opacity="0.75"/>
+  <circle cx="150" cy="760" r="220" fill="#E5AD79" opacity="0.18"/>
+
+  <text x="84" y="100" class="title">ElevateBox Assignment Build Flow</text>
+  <text x="84" y="142" class="subtitle">Outbound AI caller for e-commerce website sales, qualification, scheduling, and WhatsApp follow-up</text>
+
+  <g filter="url(#shadow)">
+    <rect x="80" y="210" width="260" height="160" rx="28" fill="url(#card)"/>
+    <text x="108" y="260" class="cardTitle">1. Trigger</text>
+    <text x="108" y="300" class="body">Operator hits</text>
+    <text x="108" y="328" class="body">/api/outbound/call</text>
+    <text x="108" y="358" class="small">Creates lead record and asks Twilio to place the call</text>
+
+    <rect x="390" y="210" width="320" height="160" rx="28" fill="url(#card)"/>
+    <text x="418" y="260" class="cardTitle">2. Telephony Loop</text>
+    <text x="418" y="300" class="body">Twilio voice webhook hits</text>
+    <text x="418" y="328" class="body">/twilio/voice/entry and /step</text>
+    <text x="418" y="358" class="small">Prompt, gather speech, keep conversation moving</text>
+
+    <rect x="760" y="210" width="340" height="160" rx="28" fill="url(#card)"/>
+    <text x="788" y="260" class="cardTitle">3. Understanding Layer</text>
+    <text x="788" y="300" class="body">OpenAI Responses API extracts</text>
+    <text x="788" y="328" class="body">language, slots, intent, next reply</text>
+    <text x="788" y="358" class="small">Budget, products, timeline, features, buyer heat</text>
+
+    <rect x="1150" y="210" width="370" height="160" rx="28" fill="url(#card)"/>
+    <text x="1178" y="260" class="cardTitle">4. Decision Engine</text>
+    <text x="1178" y="300" class="body">Hot → WhatsApp mid call</text>
+    <text x="1178" y="328" class="body">Callback request → schedule parse</text>
+    <text x="1178" y="358" class="small">State stored in local lead history JSON</text>
+
+    <rect x="200" y="520" width="350" height="170" rx="28" fill="url(#card)"/>
+    <text x="228" y="570" class="cardTitle">5. WhatsApp Follow-up</text>
+    <text x="228" y="610" class="body">Twilio Messaging sends contextual follow-up</text>
+    <text x="228" y="638" class="body">with architecture image and resume</text>
+    <text x="228" y="668" class="small">Uses the actual transcript summary, not a generic template</text>
+
+    <rect x="625" y="520" width="350" height="170" rx="28" fill="url(#card)"/>
+    <text x="653" y="570" class="cardTitle">6. Callback Capture</text>
+    <text x="653" y="610" class="body">Spoken time such as</text>
+    <text x="653" y="638" class="body">“tomorrow morning” is normalized</text>
+    <text x="653" y="668" class="small">Stored for confirmation or next manual handoff</text>
+
+    <rect x="1050" y="520" width="390" height="170" rx="28" fill="url(#card)"/>
+    <text x="1078" y="570" class="cardTitle">7. Operator View</text>
+    <text x="1078" y="610" class="body">Dashboard shows transcript, qualification,</text>
+    <text x="1078" y="638" class="body">callback status, and retry-call controls</text>
+    <text x="1078" y="668" class="small">Useful for demoing the full assignment flow live</text>
+  </g>
+
+  <path d="M340 290H390" stroke="#A45732" stroke-width="6" stroke-linecap="round"/>
+  <path d="M710 290H760" stroke="#A45732" stroke-width="6" stroke-linecap="round"/>
+  <path d="M1100 290H1150" stroke="#A45732" stroke-width="6" stroke-linecap="round"/>
+  <path d="M1250 370V445H375V520" stroke="#A45732" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M930 370V445H800V520" stroke="#A45732" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M550 370V445H1230V520" stroke="#A45732" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <text x="84" y="818" class="small">Tech choices in this repo: native Node.js server, Twilio Voice + WhatsApp webhooks, OpenAI Responses API, local JSON state, and static recruiter artifacts.</text>
+</svg>

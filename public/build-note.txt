@@ -1,0 +1,3 @@
+What works: outbound Twilio call flow, live classification loop, WhatsApp follow-up hooks, callback parsing, and recruiter deliverables packaging.
+What does not: live calling cannot run until real Twilio and OpenAI credentials, public HTTPS hosting, a WhatsApp-enabled sender, and your actual resume/mobile number are configured.
+What next: deploy behind HTTPS, add call recordings and stronger Telugu STT tuning, and test the live conversation against real buyer responses.
