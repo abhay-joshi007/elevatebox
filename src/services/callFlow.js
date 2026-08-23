@@ -124,9 +124,9 @@ export async function processVoiceStep(leadId, speechResult) {
   try {
     analysis = await analyzeConversationTurn(lead, speechResult);
   } catch (error) {
-    console.error("OpenAI turn analysis failed:", error.message);
+    console.error("AI turn analysis failed:", error.message);
     analysis = analyzeConversationTurnFallback(lead, speechResult);
-    analysis.openAiError = error.message;
+    analysis.aiError = error.message;
   }
   lead = updateLead(leadId, (draft) => {
     draft.status = "in_progress";
@@ -143,9 +143,9 @@ export async function processVoiceStep(leadId, speechResult) {
     draft.transcript.push({ role: "caller", text: speechResult, at: new Date().toISOString() });
     draft.notes.push({ type: "turn_summary", text: analysis.summary, at: new Date().toISOString() });
     draft.nextPrompt = analysis.reply || nextPromptFromObjective(analysis.nextObjective, draft.language);
-    if (analysis.openAiError) {
-      draft.notes.push({ type: "openai_error", text: analysis.openAiError, at: new Date().toISOString() });
-      draft.events.push({ type: "openai_fallback_used", value: analysis.openAiError, at: new Date().toISOString() });
+    if (analysis.aiError) {
+      draft.notes.push({ type: "ai_error", text: analysis.aiError, at: new Date().toISOString() });
+      draft.events.push({ type: "ai_fallback_used", value: analysis.aiError, at: new Date().toISOString() });
     }
     draft.events.push({
       type: "classification",
@@ -272,7 +272,7 @@ export async function sendFinalFollowUp(leadId) {
   try {
     message = await generateFollowUpMessage(lead);
   } catch (error) {
-    console.error("OpenAI follow-up generation failed:", error.message);
+    console.error("AI follow-up generation failed:", error.message);
     message = generateFallbackFollowUpMessage(lead);
     usedFallback = true;
   }
@@ -285,7 +285,7 @@ export async function sendFinalFollowUp(leadId) {
 
   lead = updateLead(leadId, (draft) => {
     if (usedFallback) {
-      draft.events.push({ type: "openai_followup_fallback", at: new Date().toISOString() });
+      draft.events.push({ type: "ai_followup_fallback", at: new Date().toISOString() });
     }
     draft.events.push({ type: "final_whatsapp_sent", at: new Date().toISOString(), body: message });
     draft.status = "completed";

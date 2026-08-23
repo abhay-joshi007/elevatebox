@@ -18,7 +18,7 @@ export const config = {
   openAiApiKey: process.env.OPENAI_API_KEY || "",
   openAiModel: process.env.OPENAI_MODEL || "gpt-5.6",
   geminiApiKey: process.env.GEMINI_API_KEY || "",
-  geminiModel: process.env.GEMINI_MODEL || "gemini-2.5-flash",
+  geminiModel: process.env.GEMINI_MODEL || "gemini-3.6-flash",
   twilioAccountSid: process.env.TWILIO_ACCOUNT_SID || "",
   twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || "",
   twilioPhoneNumber: process.env.TWILIO_PHONE_NUMBER || "",
@@ -63,7 +63,7 @@ export function validateConfiguration() {
     missing.push("OPENAI_MODEL (use an API model id such as gpt-5.6-luna, gpt-5.6-terra, gpt-5.1, or gpt-4.1-mini)");
   }
   if (config.aiProvider === "gemini" && !isLikelyGeminiModel(config.geminiModel)) {
-    missing.push("GEMINI_MODEL (use a Gemini model id such as gemini-2.5-flash)");
+    missing.push("GEMINI_MODEL (use a Gemini model id such as gemini-3.6-flash)");
   }
   if (!fs.existsSync(path.join(config.assetsDir, "resume.pdf"))) {
     missing.push("assets/resume.pdf");
