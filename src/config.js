@@ -14,7 +14,7 @@ const required = [
 loadEnvFile();
 
 export const config = {
-  appBaseUrl: process.env.APP_BASE_URL || "http://localhost:3000",
+  appBaseUrl: normalizeBaseUrl(process.env.APP_BASE_URL || "http://localhost:3000"),
   port: Number(process.env.PORT || 3000),
   openAiApiKey: process.env.OPENAI_API_KEY || "",
   openAiModel: process.env.OPENAI_MODEL || "gpt-5.6",
@@ -49,6 +49,12 @@ export function validateConfiguration() {
   if (!isPublicHttpsUrl(config.appBaseUrl)) {
     missing.push("APP_BASE_URL (must be a public HTTPS URL for Twilio webhooks)");
   }
+  if (!isLikelyOpenAiModel(config.openAiModel)) {
+    missing.push("OPENAI_MODEL (use an API model id such as gpt-5.6-luna, gpt-5.6-terra, gpt-5.1, or gpt-4.1-mini)");
+  }
+  if (config.twilioWhatsAppNumber === config.twilioPhoneNumber) {
+    missing.push("TWILIO_WHATSAPP_NUMBER (must be a WhatsApp-enabled Twilio sender, not just the voice phone number)");
+  }
   if (!fs.existsSync(path.join(config.assetsDir, "resume.pdf"))) {
     missing.push("assets/resume.pdf");
   }
@@ -67,6 +73,14 @@ function isPublicHttpsUrl(value) {
   } catch {
     return false;
   }
+}
+
+function normalizeBaseUrl(value) {
+  return String(value).trim().replace(/\/+$/, "");
+}
+
+function isLikelyOpenAiModel(value) {
+  return /^(gpt|o)\w*(?:[-.]\w+)*$/.test(value) && !/^gpt-\d+(?:\.\d+)?$/.test(value);
 }
 
 function loadEnvFile() {

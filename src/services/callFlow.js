@@ -115,7 +115,26 @@ export async function processVoiceStep(leadId, speechResult) {
     });
   }
 
-  const analysis = await analyzeConversationTurn(lead, speechResult);
+  let analysis;
+  try {
+    analysis = await analyzeConversationTurn(lead, speechResult);
+  } catch (error) {
+    console.error("OpenAI turn analysis failed:", error.message);
+    lead = updateLead(leadId, (draft) => {
+      draft.status = "needs_attention";
+      draft.transcript.push({ role: "caller", text: speechResult, at: new Date().toISOString() });
+      draft.notes.push({ type: "openai_error", text: error.message, at: new Date().toISOString() });
+      draft.events.push({ type: "openai_error", value: error.message, at: new Date().toISOString() });
+      draft.nextPrompt = "Sorry, I could not reach our analysis server right now. I will ask my team to follow up with you shortly on WhatsApp.";
+      return draft;
+    });
+
+    await trySendFinalFollowUp(leadId);
+    return sayAndHangup({
+      prompt: lead.nextPrompt,
+      language: lead.language || config.defaultLanguage
+    });
+  }
   lead = updateLead(leadId, (draft) => {
     draft.status = "in_progress";
     draft.language = analysis.language || draft.language;
@@ -144,11 +163,13 @@ export async function processVoiceStep(leadId, speechResult) {
   });
 
   if (analysis.highIntent && !lead.events.some((event) => event.type === "mid_call_whatsapp_sent")) {
-    await sendMidCallWhatsApp(lead);
-    lead = updateLead(leadId, (draft) => {
-      draft.events.push({ type: "mid_call_whatsapp_sent", at: new Date().toISOString() });
-      return draft;
-    });
+    const sent = await trySendMidCallWhatsApp(lead);
+    if (sent) {
+      lead = updateLead(leadId, (draft) => {
+        draft.events.push({ type: "mid_call_whatsapp_sent", at: new Date().toISOString() });
+        return draft;
+      });
+    }
   }
 
   if (analysis.callbackRequested && analysis.callbackTimeReference) {
@@ -166,7 +187,7 @@ export async function processVoiceStep(leadId, speechResult) {
 
   const shouldClose = lead.events.filter((event) => event.type === "classification").length >= 4 || Boolean(lead.callback);
   if (shouldClose) {
-    await sendFinalFollowUp(leadId);
+    await trySendFinalFollowUp(leadId);
     return sayAndHangup({
       prompt: lead.nextPrompt || "Thank you for your time. I have sent you the details on WhatsApp.",
       language: lead.language
@@ -194,7 +215,35 @@ export async function handleStatusUpdate(leadId, status, callSid) {
   });
 
   if (shouldSendFollowUp) {
+    await trySendFinalFollowUp(leadId);
+  }
+}
+
+async function trySendMidCallWhatsApp(lead) {
+  try {
+    await sendMidCallWhatsApp(lead);
+    return true;
+  } catch (error) {
+    console.error("Mid-call WhatsApp failed:", error.message);
+    updateLead(lead.id, (draft) => {
+      draft.events.push({ type: "whatsapp_error", value: error.message, at: new Date().toISOString() });
+      draft.notes.push({ type: "whatsapp_error", text: error.message, at: new Date().toISOString() });
+      return draft;
+    });
+    return false;
+  }
+}
+
+async function trySendFinalFollowUp(leadId) {
+  try {
     await sendFinalFollowUp(leadId);
+  } catch (error) {
+    console.error("Final WhatsApp follow-up failed:", error.message);
+    updateLead(leadId, (draft) => {
+      draft.events.push({ type: "whatsapp_error", value: error.message, at: new Date().toISOString() });
+      draft.notes.push({ type: "whatsapp_error", text: error.message, at: new Date().toISOString() });
+      return draft;
+    });
   }
 }
 
