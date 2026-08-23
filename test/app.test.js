@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { config, validateConfiguration } from "../src/config.js";
+import { config, validateConfiguration, validateOptionalConfiguration } from "../src/config.js";
 import { placeOutboundCall, sayAndGather, sayAndHangup, sendWhatsAppMessage } from "../src/services/twilio.js";
 import { renderDashboard } from "../src/views/dashboard.js";
 import { safeStaticPath } from "../src/lib/http.js";
@@ -64,6 +64,20 @@ test("preflight rejects localhost app base URL for Twilio webhooks", () => {
     );
   } finally {
     config.appBaseUrl = previousBaseUrl;
+  }
+});
+
+test("WhatsApp sender mismatch is a warning, not a voice-call blocker", () => {
+  const previousVoiceNumber = config.twilioPhoneNumber;
+  const previousWhatsAppNumber = config.twilioWhatsAppNumber;
+  config.twilioPhoneNumber = "+17372212163";
+  config.twilioWhatsAppNumber = "+17372212163";
+  try {
+    assert.doesNotMatch(validateConfiguration().join("\n"), /TWILIO_WHATSAPP_NUMBER/);
+    assert.match(validateOptionalConfiguration().join("\n"), /TWILIO_WHATSAPP_NUMBER/);
+  } finally {
+    config.twilioPhoneNumber = previousVoiceNumber;
+    config.twilioWhatsAppNumber = previousWhatsAppNumber;
   }
 });
 

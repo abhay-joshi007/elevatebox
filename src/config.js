@@ -7,7 +7,6 @@ const required = [
   "TWILIO_ACCOUNT_SID",
   "TWILIO_AUTH_TOKEN",
   "TWILIO_PHONE_NUMBER",
-  "TWILIO_WHATSAPP_NUMBER",
   "YOUR_MOBILE_NUMBER"
 ];
 
@@ -52,13 +51,20 @@ export function validateConfiguration() {
   if (!isLikelyOpenAiModel(config.openAiModel)) {
     missing.push("OPENAI_MODEL (use an API model id such as gpt-5.6-luna, gpt-5.6-terra, gpt-5.1, or gpt-4.1-mini)");
   }
-  if (config.twilioWhatsAppNumber === config.twilioPhoneNumber) {
-    missing.push("TWILIO_WHATSAPP_NUMBER (must be a WhatsApp-enabled Twilio sender, not just the voice phone number)");
-  }
   if (!fs.existsSync(path.join(config.assetsDir, "resume.pdf"))) {
     missing.push("assets/resume.pdf");
   }
   return missing;
+}
+
+export function validateOptionalConfiguration() {
+  const warnings = [];
+  if (!config.twilioWhatsAppNumber) {
+    warnings.push("TWILIO_WHATSAPP_NUMBER (WhatsApp follow-up disabled until a WhatsApp-enabled Twilio sender is configured)");
+  } else if (config.twilioWhatsAppNumber === config.twilioPhoneNumber) {
+    warnings.push("TWILIO_WHATSAPP_NUMBER (voice calls can run, but WhatsApp needs a WhatsApp-enabled Twilio sender, not just the voice phone number)");
+  }
+  return warnings;
 }
 
 function isPublicHttpsUrl(value) {

@@ -1,8 +1,9 @@
 import fs from "node:fs";
-import { config, ensureDirectories, validateConfiguration } from "../src/config.js";
+import { config, ensureDirectories, validateConfiguration, validateOptionalConfiguration } from "../src/config.js";
 
 ensureDirectories();
 const missing = validateConfiguration();
+const warnings = validateOptionalConfiguration();
 
 console.log("ElevateBox live-call preflight");
 console.log(`Target phone: ${config.targetPhoneNumber}`);
@@ -18,4 +19,12 @@ if (missing.length) {
   process.exit();
 }
 
-console.log("\nReady for live deployment and call testing.");
+if (warnings.length) {
+  console.warn("\nReady for voice calling, with warnings:");
+  for (const item of warnings) {
+    console.warn(`- ${item}`);
+  }
+  console.log("\nVoice calling is ready. Fix the warnings before expecting WhatsApp follow-up delivery.");
+} else {
+  console.log("\nReady for live deployment and call testing.");
+}

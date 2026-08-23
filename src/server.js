@@ -1,7 +1,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
-import { config, ensureDirectories, validateConfiguration } from "./config.js";
+import { config, ensureDirectories, validateConfiguration, validateOptionalConfiguration } from "./config.js";
 import { createLead, listLeads, updateLead } from "./lib/storage.js";
 import { notFound, parseRequest, safeStaticPath, sendJson, sendText, sendXml, serveFile } from "./lib/http.js";
 import { buildVoiceResponse, handleStatusUpdate, processVoiceStep } from "./services/callFlow.js";
@@ -47,9 +47,11 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && request.path === "/api/health") {
       const missingConfiguration = validateConfiguration();
+      const configurationWarnings = validateOptionalConfiguration();
       sendJson(res, missingConfiguration.length ? 503 : 200, {
         ok: missingConfiguration.length === 0,
         missingConfiguration,
+        configurationWarnings,
         leads: listLeads().length
       });
       return;
@@ -118,6 +120,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(config.port, () => {
   const missing = validateConfiguration();
+  const warnings = validateOptionalConfiguration();
   const bannerPath = path.join(config.publicDir, "build-note.txt");
   if (!fs.existsSync(bannerPath)) {
     fs.writeFileSync(
@@ -129,6 +132,9 @@ server.listen(config.port, () => {
   console.log(`ElevateBox caller running on http://localhost:${config.port}`);
   if (missing.length) {
     console.log(`Missing required configuration: ${missing.join(", ")}`);
+  }
+  if (warnings.length) {
+    console.log(`Configuration warnings: ${warnings.join(", ")}`);
   }
 });
 
