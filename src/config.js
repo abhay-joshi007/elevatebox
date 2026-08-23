@@ -3,7 +3,6 @@ import path from "node:path";
 
 const required = [
   "APP_BASE_URL",
-  "OPENAI_API_KEY",
   "TWILIO_ACCOUNT_SID",
   "TWILIO_AUTH_TOKEN",
   "TWILIO_PHONE_NUMBER",
@@ -15,8 +14,11 @@ loadEnvFile();
 export const config = {
   appBaseUrl: normalizeBaseUrl(process.env.APP_BASE_URL || "http://localhost:3000"),
   port: Number(process.env.PORT || 3000),
+  aiProvider: normalizeProvider(process.env.AI_PROVIDER || "openai"),
   openAiApiKey: process.env.OPENAI_API_KEY || "",
   openAiModel: process.env.OPENAI_MODEL || "gpt-5.6",
+  geminiApiKey: process.env.GEMINI_API_KEY || "",
+  geminiModel: process.env.GEMINI_MODEL || "gemini-2.5-flash",
   twilioAccountSid: process.env.TWILIO_ACCOUNT_SID || "",
   twilioAuthToken: process.env.TWILIO_AUTH_TOKEN || "",
   twilioPhoneNumber: process.env.TWILIO_PHONE_NUMBER || "",
@@ -45,11 +47,23 @@ export function ensureDirectories() {
 
 export function validateConfiguration() {
   const missing = required.filter((key) => !process.env[key]);
+  if (!["openai", "gemini"].includes(config.aiProvider)) {
+    missing.push("AI_PROVIDER (must be openai or gemini)");
+  }
+  if (config.aiProvider === "openai" && !config.openAiApiKey) {
+    missing.push("OPENAI_API_KEY");
+  }
+  if (config.aiProvider === "gemini" && !config.geminiApiKey) {
+    missing.push("GEMINI_API_KEY");
+  }
   if (!isPublicHttpsUrl(config.appBaseUrl)) {
     missing.push("APP_BASE_URL (must be a public HTTPS URL for Twilio webhooks)");
   }
-  if (!isLikelyOpenAiModel(config.openAiModel)) {
+  if (config.aiProvider === "openai" && !isLikelyOpenAiModel(config.openAiModel)) {
     missing.push("OPENAI_MODEL (use an API model id such as gpt-5.6-luna, gpt-5.6-terra, gpt-5.1, or gpt-4.1-mini)");
+  }
+  if (config.aiProvider === "gemini" && !isLikelyGeminiModel(config.geminiModel)) {
+    missing.push("GEMINI_MODEL (use a Gemini model id such as gemini-2.5-flash)");
   }
   if (!fs.existsSync(path.join(config.assetsDir, "resume.pdf"))) {
     missing.push("assets/resume.pdf");
@@ -85,8 +99,16 @@ function normalizeBaseUrl(value) {
   return String(value).trim().replace(/\/+$/, "");
 }
 
+function normalizeProvider(value) {
+  return String(value).trim().toLowerCase();
+}
+
 function isLikelyOpenAiModel(value) {
   return /^(gpt|o)\w*(?:[-.]\w+)*$/.test(value) && !/^gpt-\d+(?:\.\d+)?$/.test(value);
+}
+
+function isLikelyGeminiModel(value) {
+  return /^gemini-[\w.-]+$/.test(value);
 }
 
 function loadEnvFile() {

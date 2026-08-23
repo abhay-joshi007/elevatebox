@@ -1,7 +1,12 @@
 import { config } from "../config.js";
 import { getLead, updateLead } from "../lib/storage.js";
 import { scheduleCallback } from "./scheduler.js";
-import { analyzeConversationTurn, generateFollowUpMessage } from "./qualification.js";
+import {
+  analyzeConversationTurn,
+  analyzeConversationTurnFallback,
+  generateFallbackFollowUpMessage,
+  generateFollowUpMessage
+} from "./qualification.js";
 import { sendWhatsAppMessage, sayAndGather, sayAndHangup } from "./twilio.js";
 
 const LANGUAGE_HINTS = {
@@ -120,20 +125,8 @@ export async function processVoiceStep(leadId, speechResult) {
     analysis = await analyzeConversationTurn(lead, speechResult);
   } catch (error) {
     console.error("OpenAI turn analysis failed:", error.message);
-    lead = updateLead(leadId, (draft) => {
-      draft.status = "needs_attention";
-      draft.transcript.push({ role: "caller", text: speechResult, at: new Date().toISOString() });
-      draft.notes.push({ type: "openai_error", text: error.message, at: new Date().toISOString() });
-      draft.events.push({ type: "openai_error", value: error.message, at: new Date().toISOString() });
-      draft.nextPrompt = "Sorry, I could not reach our analysis server right now. I will ask my team to follow up with you shortly on WhatsApp.";
-      return draft;
-    });
-
-    await trySendFinalFollowUp(leadId);
-    return sayAndHangup({
-      prompt: lead.nextPrompt,
-      language: lead.language || config.defaultLanguage
-    });
+    analysis = analyzeConversationTurnFallback(lead, speechResult);
+    analysis.openAiError = error.message;
   }
   lead = updateLead(leadId, (draft) => {
     draft.status = "in_progress";
@@ -150,6 +143,10 @@ export async function processVoiceStep(leadId, speechResult) {
     draft.transcript.push({ role: "caller", text: speechResult, at: new Date().toISOString() });
     draft.notes.push({ type: "turn_summary", text: analysis.summary, at: new Date().toISOString() });
     draft.nextPrompt = analysis.reply || nextPromptFromObjective(analysis.nextObjective, draft.language);
+    if (analysis.openAiError) {
+      draft.notes.push({ type: "openai_error", text: analysis.openAiError, at: new Date().toISOString() });
+      draft.events.push({ type: "openai_fallback_used", value: analysis.openAiError, at: new Date().toISOString() });
+    }
     draft.events.push({
       type: "classification",
       value: analysis.classification,
@@ -270,7 +267,16 @@ export async function sendFinalFollowUp(leadId) {
     return;
   }
 
-  const message = await generateFollowUpMessage(lead);
+  let message;
+  let usedFallback = false;
+  try {
+    message = await generateFollowUpMessage(lead);
+  } catch (error) {
+    console.error("OpenAI follow-up generation failed:", error.message);
+    message = generateFallbackFollowUpMessage(lead);
+    usedFallback = true;
+  }
+
   await sendWhatsAppMessage({
     to: lead.phoneNumber,
     body: `${message}\n\nMy number: ${config.yourMobileNumber || "Please set YOUR_MOBILE_NUMBER in env."}`,
@@ -278,6 +284,9 @@ export async function sendFinalFollowUp(leadId) {
   });
 
   lead = updateLead(leadId, (draft) => {
+    if (usedFallback) {
+      draft.events.push({ type: "openai_followup_fallback", at: new Date().toISOString() });
+    }
     draft.events.push({ type: "final_whatsapp_sent", at: new Date().toISOString(), body: message });
     draft.status = "completed";
     return draft;

@@ -5,6 +5,8 @@ import { placeOutboundCall, sayAndGather, sayAndHangup, sendWhatsAppMessage } fr
 import { renderDashboard } from "../src/views/dashboard.js";
 import { safeStaticPath } from "../src/lib/http.js";
 import { buildOpeningPrompt } from "../src/services/callFlow.js";
+import { analyzeConversationTurnFallback, generateFallbackFollowUpMessage } from "../src/services/qualification.js";
+import { askGemini } from "../src/services/gemini.js";
 import { toAbsoluteIso } from "../src/services/scheduler.js";
 
 test("sayAndGather builds speech TwiML with action URL", () => {
@@ -78,6 +80,67 @@ test("WhatsApp sender mismatch is a warning, not a voice-call blocker", () => {
   } finally {
     config.twilioPhoneNumber = previousVoiceNumber;
     config.twilioWhatsAppNumber = previousWhatsAppNumber;
+  }
+});
+
+test("fallback analysis captures basic sales intent without OpenAI", () => {
+  const result = analyzeConversationTurnFallback(
+    { language: "en-IN", slots: {} },
+    "I sell fashion products and need payment checkout in 2 weeks. Budget is 50000 rupees."
+  );
+
+  assert.equal(result.classification, "warm");
+  assert.equal(result.slots.products.includes("fashion"), true);
+  assert.match(result.slots.features, /payment/);
+  assert.match(result.slots.timeline, /2 weeks/i);
+  assert.match(result.reply, /noted/i);
+  assert.match(result.reply, /What else is important|budget|launch|features/i);
+});
+
+test("fallback WhatsApp message is generated without OpenAI", () => {
+  const message = generateFallbackFollowUpMessage({
+    slots: {
+      products: "fashion catalog",
+      budget: "50000 rupees",
+      timeline: "two weeks",
+      features: "payments, checkout"
+    },
+    transcript: []
+  });
+
+  assert.match(message, /fashion catalog/);
+  assert.match(message, /50000 rupees/);
+  assert.match(message, /architecture image and resume/);
+});
+
+test("Gemini boundary parses JSON response text", async () => {
+  const originalFetch = globalThis.fetch;
+  const previousKey = config.geminiApiKey;
+  config.geminiApiKey = "test-key";
+  globalThis.fetch = async (url, init) => {
+    assert.match(String(url), /generativelanguage\.googleapis\.com/);
+    assert.equal(init.headers["x-goog-api-key"], "test-key");
+    return {
+      ok: true,
+      json: async () => ({
+        candidates: [{ content: { parts: [{ text: "{\"message\":\"hello\"}" }] } }]
+      })
+    };
+  };
+
+  try {
+    const result = await askGemini({
+      instructions: "Return JSON.",
+      input: [{ content: [{ text: "Say hello." }] }],
+      jsonSchema: {
+        name: "test",
+        schema: { type: "object", properties: { message: { type: "string" } }, required: ["message"] }
+      }
+    });
+    assert.equal(result.message, "hello");
+  } finally {
+    globalThis.fetch = originalFetch;
+    config.geminiApiKey = previousKey;
   }
 });
 

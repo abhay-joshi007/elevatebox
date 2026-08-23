@@ -1,4 +1,4 @@
-import { askOpenAi } from "./openai.js";
+import { askAi } from "./ai.js";
 
 const schema = {
   name: "lead_turn_analysis",
@@ -49,7 +49,7 @@ export async function analyzeConversationTurn(lead, callerSpeech) {
     .map((entry) => `${entry.role.toUpperCase()}: ${entry.text}`)
     .join("\n");
 
-  return askOpenAi({
+  return askAi({
     instructions,
     input: [
       {
@@ -69,6 +69,142 @@ export async function analyzeConversationTurn(lead, callerSpeech) {
     ],
     jsonSchema: schema
   });
+}
+
+export function analyzeConversationTurnFallback(lead, callerSpeech) {
+  const text = String(callerSpeech || "").trim();
+  const lower = text.toLowerCase();
+  const slots = {
+    budget: extractBudget(text) || null,
+    products: extractProducts(text) || null,
+    timeline: extractTimeline(text) || null,
+    features: extractFeatures(text) || null
+  };
+  const callbackRequested = /\b(call back|callback|later|tomorrow|evening|morning|afternoon)\b/i.test(text);
+  const highIntent = /\b(price|cost|start|launch|urgent|soon|proposal|demo|pay|ready)\b/i.test(text);
+  const classification = highIntent ? "hot" : callbackRequested || Object.values(slots).some(Boolean) ? "warm" : "cold";
+  const nextObjective = chooseFallbackObjective({ lead, slots, callbackRequested, highIntent });
+  const reply = buildFallbackReply({ lead, text, slots, nextObjective, callbackRequested, highIntent });
+
+  return {
+    language: lead.language,
+    summary: `Fallback analysis from caller speech: ${text || "No speech captured."}`,
+    classification,
+    highIntent,
+    callbackRequested,
+    callbackTimeReference: callbackRequested ? text : null,
+    slots,
+    nextObjective,
+    reply
+  };
+}
+
+function buildFallbackReply({ lead, text, slots, nextObjective, callbackRequested, highIntent }) {
+  const heard = text ? summarizeHeardText(text) : "that";
+  const acknowledgements = [];
+
+  if (slots.products) {
+    acknowledgements.push("what you want to sell");
+  }
+  if (slots.budget) {
+    acknowledgements.push(`your budget around ${slots.budget}`);
+  }
+  if (slots.timeline) {
+    acknowledgements.push(`your timeline of ${slots.timeline}`);
+  }
+  if (slots.features) {
+    acknowledgements.push(`features like ${slots.features}`);
+  }
+
+  const acknowledgement = acknowledgements.length
+    ? `Got it, I noted ${joinForSpeech(acknowledgements)}.`
+    : `I heard you say ${heard}.`;
+
+  if (callbackRequested) {
+    return `${acknowledgement} What exact time should we call you back?`;
+  }
+  if (highIntent) {
+    return `${acknowledgement} That sounds promising. I can share the project details on WhatsApp. Before I wrap up, what is your preferred budget and launch timeline?`;
+  }
+
+  return `${acknowledgement} ${fallbackQuestionForObjective(nextObjective, lead.language)}`;
+}
+
+function fallbackQuestionForObjective(objective, language) {
+  const englishQuestions = {
+    discover_budget: "Could you share the budget range you have in mind?",
+    discover_products: "What products or categories should the online store handle?",
+    discover_timeline: "By when do you want to launch the website?",
+    discover_features: "Which features matter most, like payments, COD, inventory, or admin tools?",
+    schedule_callback: "What time should we call you back?",
+    close_high_intent: "Should I send the details on WhatsApp now?",
+    close_general: "What else is important for this website?"
+  };
+  return englishQuestions[objective] || englishQuestions.close_general;
+}
+
+function summarizeHeardText(text) {
+  const compact = text.replace(/\s+/g, " ").trim();
+  return compact.length > 110 ? `${compact.slice(0, 107)}...` : compact;
+}
+
+function joinForSpeech(items) {
+  if (items.length <= 1) {
+    return items[0] || "";
+  }
+  return `${items.slice(0, -1).join(", ")}, and ${items.at(-1)}`;
+}
+
+function chooseFallbackObjective({ lead, slots, callbackRequested, highIntent }) {
+  if (callbackRequested) {
+    return "schedule_callback";
+  }
+  if (highIntent) {
+    return "close_high_intent";
+  }
+  if (!(slots.products || lead.slots?.products)) {
+    return "discover_products";
+  }
+  if (!(slots.budget || lead.slots?.budget)) {
+    return "discover_budget";
+  }
+  if (!(slots.timeline || lead.slots?.timeline)) {
+    return "discover_timeline";
+  }
+  if (!(slots.features || lead.slots?.features)) {
+    return "discover_features";
+  }
+  return "close_general";
+}
+
+function extractBudget(text) {
+  const match = text.match(/(?:rs\.?|₹|inr)?\s*(\d+(?:[.,]\d+)?)\s*(lakh|lac|k|thousand|crore)?/i);
+  if (!match || !/\b(budget|price|cost|rs|inr|lakh|lac|thousand|crore|₹)\b/i.test(text)) {
+    return null;
+  }
+  return match[0].trim();
+}
+
+function extractProducts(text) {
+  if (!/\b(sell|selling|product|products|catalog|category|store|shop|fashion|clothes|food|jewellery|electronics)\b/i.test(text)) {
+    return null;
+  }
+  return text;
+}
+
+function extractTimeline(text) {
+  const match = text.match(/\b(today|tomorrow|this week|next week|this month|next month|\d+\s*(?:day|days|week|weeks|month|months))\b/i);
+  return match?.[0] || null;
+}
+
+function extractFeatures(text) {
+  const features = ["payment", "payments", "cod", "inventory", "admin", "checkout", "delivery", "shipping", "multilingual", "catalog"];
+  const found = features.filter((feature) => lowerIncludesWord(text, feature));
+  return found.length ? found.join(", ") : null;
+}
+
+function lowerIncludesWord(text, word) {
+  return new RegExp(`\\b${word}\\b`, "i").test(text);
 }
 
 export async function generateFollowUpMessage(lead) {
@@ -92,7 +228,7 @@ export async function generateFollowUpMessage(lead) {
     }
   };
 
-  const result = await askOpenAi({
+  const result = await askAi({
     instructions,
     input: [
       {
@@ -117,6 +253,23 @@ export async function generateFollowUpMessage(lead) {
   return result.message;
 }
 
+export function generateFallbackFollowUpMessage(lead) {
+  const need = lead.slots?.products || latestCallerText(lead) || "your e-commerce website requirement";
+  const timeline = lead.slots?.timeline || "the timeline you prefer";
+  const budget = lead.slots?.budget || "your planned budget";
+  const features = lead.slots?.features || "catalog, payments, checkout, and admin features";
+
+  return [
+    `Hi, thanks for speaking with me about ${need}.`,
+    `I noted the budget as ${budget}, timeline as ${timeline}, and key features as ${features}.`,
+    "I am sharing the architecture image and resume here. Please reply with any missing details, and we can take the next step."
+  ].join(" ");
+}
+
+function latestCallerText(lead) {
+  return [...(lead.transcript || [])].reverse().find((entry) => entry.role === "caller")?.text || null;
+}
+
 export async function resolveCallbackTime(referenceText, timezone) {
   const schema = {
     name: "callback_time",
@@ -132,7 +285,7 @@ export async function resolveCallbackTime(referenceText, timezone) {
     }
   };
 
-  return askOpenAi({
+  return askAi({
     instructions: `Convert spoken callback time references into an ISO local datetime in timezone ${timezone}. For broad but actionable phrases, use these defaults: morning=10:00, afternoon=14:00, evening=18:00 in that timezone, and explain the assumption in note. Return null only when no reasonable day or time can be inferred. Include the timezone offset in isoLocal, for example 2026-08-23T10:00:00+05:30.`,
     input: [
       {
