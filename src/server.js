@@ -6,7 +6,7 @@ import { createLead, listLeads, updateLead } from "./lib/storage.js";
 import { notFound, parseRequest, safeStaticPath, sendJson, sendText, sendXml, serveFile } from "./lib/http.js";
 import { buildVoiceResponse, handleStatusUpdate, processVoiceStep } from "./services/callFlow.js";
 import { runDueCallbacks } from "./services/scheduler.js";
-import { placeOutboundCall } from "./services/twilio.js";
+import { placeOutboundCall, sayAndHangup } from "./services/twilio.js";
 import { renderDashboard } from "./views/dashboard.js";
 
 ensureDirectories();
@@ -110,7 +110,18 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && request.path === "/twilio/voice/step") {
       const leadId = request.query.leadId;
       const speechResult = request.body?.SpeechResult || request.body?.speechResult || "I did not catch that clearly.";
-      sendXml(res, await processVoiceStep(leadId, speechResult));
+      try {
+        sendXml(res, await processVoiceStep(leadId, speechResult));
+      } catch (error) {
+        console.error("Voice step failed:", error);
+        sendXml(
+          res,
+          sayAndHangup({
+            prompt: "I am sorry, I could not process that response. I will send the details on WhatsApp.",
+            language: config.defaultLanguage
+          })
+        );
+      }
       return;
     }
 

@@ -19,27 +19,41 @@ export async function askGemini({ instructions, input, jsonSchema }) {
     inputToText(input)
   ].join("\n");
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.geminiModel)}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": config.geminiApiKey
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: prompt }]
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+
+  let response;
+  try {
+    response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.geminiModel)}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": config.geminiApiKey
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: prompt }]
+            }
+          ],
+          generationConfig: {
+            response_mime_type: "application/json"
           }
-        ],
-        generationConfig: {
-          response_mime_type: "application/json"
-        }
-      })
+        }),
+        signal: controller.signal
+      }
+    );
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error("Gemini request timed out after 8 seconds");
     }
-  );
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
