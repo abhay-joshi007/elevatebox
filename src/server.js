@@ -98,6 +98,15 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if ((req.method === "GET" || req.method === "POST") && request.path === "/twilio/voice/test-entry") {
+      const phoneNumber = request.body?.To || request.query.phoneNumber || config.targetPhoneNumber;
+      const lead = createLead({ phoneNumber });
+      lead.events.push({ type: "twilio_test_entry", at: new Date().toISOString() });
+      updateLead(lead.id, () => lead);
+      sendXml(res, buildVoiceResponse(lead.id));
+      return;
+    }
+
     if (req.method === "POST" && request.path === "/twilio/voice/step") {
       const leadId = request.query.leadId;
       const speechResult = request.body?.SpeechResult || request.body?.speechResult || "I did not catch that clearly.";
